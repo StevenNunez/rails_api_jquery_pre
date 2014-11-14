@@ -1,51 +1,119 @@
-function liTemplate(input, details){
+'use strict';
+function Courses(element){
+  this.$element = $(element);
+  this.all = []
+  this.$element.on('click', '.course', $.proxy(this.handleDetailToggle, this))
+}
+
+Courses.prototype.handleDetailToggle = function(event){
+  this.toggleDetailsFor($(event.target));
+}
+
+Courses.prototype.addCourse = function(name, details){
+  var course = new Course(name, details);
+  this.all.push(course);
+  this.$element.append(course.template());
+}
+
+Courses.prototype.findCourseByName = function(name){
+  var foundCourse;
+  this.all.forEach(function(course){
+    if (course.name === name){
+      foundCourse = course
+    }
+  })
+  return foundCourse;
+}
+
+Courses.prototype.showDetailsFor = function(el){
+  var course = this.findCourseByName(el.text());
+  el.append(course.detailsTemplate());
+}
+
+Courses.prototype.removeDetailsFor = function(el){
+  el.find('.details').remove();
+}
+
+Courses.prototype.toggleDetailsFor = function(el){
+  if(this.$element.find('.details').length === 0){
+    this.showDetailsFor(el);
+  } else {
+    this.removeDetailsFor(el);
+  }
+}
+
+Courses.prototype.getAll = function(){
+  var self = this;
+  $.getJSON('/courses.json', function(data){
+    data.forEach(function(item){
+      self.addCourse(item.name, item.details)
+    })
+  })
+}
+
+function Course(name, details){
+  this.name = name ;
+  this.details = details;
+}
+
+Course.prototype.template = function(){
   return '<li class="course" data-details="' +
-  details +
+  this.details +
   '">' +
-  input +
+  this.name +
   '</li>';
 }
 
-function detailsTemplate(details){
+Course.prototype.detailsTemplate = function(){
   return'<div class="details">' +
-  details +
+  this.details +
   '</div>';
 }
-function appendToUl(ul, item){
-  ul.append(liTemplate(item.name, item.details));
+
+function CourseForm(form, courseList){
+  this.$form = $(form);
+  this.courseList = courseList;
+  this.$form.submit($.proxy(this.submitHandler, this));
+}
+
+CourseForm.prototype.name = function(){
+  return this.$form.find('.course-input').val();
+}
+
+CourseForm.prototype.details = function(){
+  return this.$form.find('.course-details').val();
+}
+
+CourseForm.prototype.clear = function(){
+  this.$form.find('.course-input').val("");
+  this.$form.find('.course-details').val("");
+  this.$form.find('.error').text("");
+}
+
+CourseForm.prototype.params = function(){
+  return {
+    name: this.name(),
+    details: this.details()
+  }
+}
+
+CourseForm.prototype.showError = function(error){
+  this.$form.find('.error').text(error);
+}
+
+CourseForm.prototype.submitHandler = function(event){
+  event.preventDefault();
+  $.post('/courses.json', this.params(), function(result){
+    this.courseList.addCourse(result.name, result.details);
+    this.clear()
+    return result;
+  }.bind(this)).fail(function(error){
+    this.showError(error.responseJSON.error);
+  }.bind(this))
 }
 
 $(document).ready(function(){
-  $.getJSON('/courses.json', function(data){
-    var $courses = $('.courses');
-    data.forEach(function(item){appendToUl($courses, item);})
-  })
-
-  $('.courses').on('click', '.course', function(event){
-    if($(this).find('.details').length === 0){
-      var $li = $(this);
-      var details = $li.data('details');
-      $li.append(detailsTemplate(details));
-    } else {
-      $(this).find('.details').remove();
-    }
-  })
-
-  $('.new-course input[type=submit]').click(function(){
-    // From the submit button
-    var $submitButton = $(this);
-    // find the first input, assign its value to a variable
-    var input = $submitButton.siblings('.course-input').val();
-    // find the second input, assign its value to a variable
-    var details = $submitButton.siblings('.course-details').val();
-    //Add some html to the ul in the same format as the other list items
-    $.post('/courses.json', {name: input, details: details}, function(result){
-      $('.courses').append(liTemplate(input, details));
-      $submitButton.siblings('.course-input').val("");
-      $submitButton.siblings('.course-details').val("");
-      $('.error').text("")
-    }).fail(function(error){
-      $('.error').text(error.responseJSON.error)
-    })
-  });
+  var courses = new Courses('.courses');
+  courses.getAll();
+  var form = new CourseForm(this, courses);
 });
