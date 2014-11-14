@@ -1,9 +1,9 @@
-function liTemplate(input, details){
+function liTemplate(id, input, details){
   return '<li class="course" data-details="' +
   details +
   '">' +
   input +
-  '</li>';
+  '<span data-id="' + id + '"class="delete"> &times;</span></li>';
 }
 
 function detailsTemplate(details){
@@ -12,13 +12,27 @@ function detailsTemplate(details){
   '</div>';
 }
 function appendToUl(ul, item){
-  ul.append(liTemplate(item.name, item.details));
+  ul.append(liTemplate(item.id, item.name, item.details));
 }
 
 $(document).ready(function(){
   $.getJSON('/courses.json', function(data){
     var $courses = $('.courses');
-    data.forEach(function(item){appendToUl($courses, item);})
+    data.forEach(function(item){
+      appendToUl($courses, item);
+    })
+  })
+
+  $('.courses').on('click', '.delete', function(event){
+    var self = this;
+    event.stopPropagation();
+    var id = $(this).data('id');
+    $.ajax({
+      url: '/courses/' + id + ".json",
+      type: "DELETE"
+    }).done(function(data){
+      $(self).parent('.course').remove();
+    })
   })
 
   $('.courses').on('click', '.course', function(event){
@@ -31,18 +45,15 @@ $(document).ready(function(){
     }
   })
 
-  $('.new-course input[type=submit]').click(function(){
-    // From the submit button
-    var $submitButton = $(this);
-    // find the first input, assign its value to a variable
-    var input = $submitButton.siblings('.course-input').val();
-    // find the second input, assign its value to a variable
-    var details = $submitButton.siblings('.course-details').val();
-    //Add some html to the ul in the same format as the other list items
-    $.post('/courses.json', {name: input, details: details}, function(result){
-      $('.courses').append(liTemplate(input, details));
-      $submitButton.siblings('.course-input').val("");
-      $submitButton.siblings('.course-details').val("");
+  $('#new-course').submit(function(event){
+    event.preventDefault();
+    var $form = $(this);
+    var input = $form.find('.course-input').val();
+    var details = $form.find('.course-details').val();
+    $.post('/courses.json', {name: input, details: details}).done(function(result){
+      $('.courses').append(liTemplate(result.id, result.name, result.details));
+      $form.find('.course-input').val("");
+      $form.find('.course-details').val("");
       $('.error').text("")
     }).fail(function(error){
       $('.error').text(error.responseJSON.error)
